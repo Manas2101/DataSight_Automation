@@ -470,92 +470,103 @@ class DataSightDORAFetcher:
 
 
 def main():
-    parser = argparse.ArgumentParser(
-        description='Fetch DORA metrics from HSBC DataSight platform',
-        formatter_class=argparse.RawDescriptionHelpFormatter,
-        epilog="""
-Examples:
-  # Fetch all metrics for a teambook
-  python fetch_dora_metrics.py --from 2025-09 --to 2025-10 --teambook-ids 5449 --level 3
-  
-  # Fetch with custom output file
-  python fetch_dora_metrics.py --from 2025-09 --to 2025-10 --teambook-ids 5449 --level 3 --output my_report.csv
-  
-  # Fetch with detailed records
-  python fetch_dora_metrics.py --from 2025-09 --to 2025-10 --teambook-ids 5449 --level 3 --fetch-details
-  
-  # Multiple teambooks
-  python fetch_dora_metrics.py --from 2025-09 --to 2025-10 --teambook-ids "5449,5450,5451" --level 3
-        """
-    )
+    print("="*80)
+    print("DORA Metrics Fetcher - Interactive Mode")
+    print("="*80)
+    print()
     
-    parser.add_argument('--from', dest='from_date', required=True, 
-                       help='Start date in YYYY-MM format (e.g., 2025-09)')
-    parser.add_argument('--to', dest='to_date', required=True, 
-                       help='End date in YYYY-MM format (e.g., 2025-10)')
-    parser.add_argument('--teambook-ids', required=True, 
-                       help='Teambook IDs (comma-separated for multiple, e.g., "5449" or "5449,5450")')
-    parser.add_argument('--level', type=int, required=True, choices=[1, 2, 3, 4, 5],
-                       help='Teambook level (1-5)')
-    parser.add_argument('--base-url', 
-                       help='DataSight API base URL (default: from config.json or env)')
-    parser.add_argument('--token', 
-                       help='Bearer token for authentication (default: from config.json or env)')
-    parser.add_argument('--output', 
-                       help='Output CSV file path (default: dora_report_<timestamp>.csv)')
-    parser.add_argument('--json-output', 
-                       help='Also save raw JSON data to this file')
-    parser.add_argument('--fetch-details', action='store_true',
-                       help='Fetch detailed records using aggregation keys')
-    parser.add_argument('--config', default='config.json', 
-                       help='Configuration file path (default: config.json)')
+    config_file = 'config.json'
+    base_url = None
+    bearer_token = None
     
-    args = parser.parse_args()
+    if os.path.exists(config_file):
+        try:
+            with open(config_file, 'r') as f:
+                config = json.load(f)
+                base_url = config.get('base_url')
+                bearer_token = config.get('bearer_token')
+                print(f"✓ Loaded configuration from {config_file}")
+        except Exception as e:
+            print(f"⚠ Warning: Could not read config file: {e}")
     
-    base_url = args.base_url
-    bearer_token = args.token
+    if not base_url:
+        base_url = os.getenv('DATASIGHT_BASE_URL')
+    if not bearer_token:
+        bearer_token = os.getenv('DATASIGHT_BEARER_TOKEN')
+    
+    if not base_url:
+        base_url = input("\nEnter DataSight API base URL (e.g., https://datasight.global.hsbc): ").strip()
+    else:
+        print(f"✓ Using base URL from config: {base_url}")
+    
+    if not bearer_token:
+        bearer_token = input("Enter Bearer token for authentication: ").strip()
+    else:
+        print(f"✓ Using bearer token from config")
     
     if not base_url or not bearer_token:
-        if os.path.exists(args.config):
-            try:
-                with open(args.config, 'r') as f:
-                    config = json.load(f)
-                    base_url = base_url or config.get('base_url')
-                    bearer_token = bearer_token or config.get('bearer_token')
-            except Exception as e:
-                print(f"Warning: Could not read config file: {e}")
-        
-        base_url = base_url or os.getenv('DATASIGHT_BASE_URL')
-        bearer_token = bearer_token or os.getenv('DATASIGHT_BEARER_TOKEN')
+        print("\n❌ Error: base_url and bearer_token are required!")
+        return
     
-    if not base_url or not bearer_token:
-        print("Error: base_url and bearer_token are required!")
-        print("Provide them via:")
-        print("  1. Command line arguments (--base-url, --token)")
-        print("  2. config.json file")
-        print("  3. Environment variables (DATASIGHT_BASE_URL, DATASIGHT_BEARER_TOKEN)")
+    print("\n" + "-"*80)
+    print("Enter DORA Metrics Parameters")
+    print("-"*80)
+    
+    from_date = input("\nStart date (YYYY-MM format, e.g., 2025-09): ").strip()
+    to_date = input("End date (YYYY-MM format, e.g., 2025-10): ").strip()
+    teambook_ids = input("Teambook IDs (comma-separated, e.g., 5449 or 5449,5450): ").strip()
+    
+    while True:
+        try:
+            teambook_level = int(input("Teambook level (1-5): ").strip())
+            if 1 <= teambook_level <= 5:
+                break
+            else:
+                print("Please enter a number between 1 and 5")
+        except ValueError:
+            print("Please enter a valid number")
+    
+    fetch_details_input = input("\nFetch detailed records using aggregation keys? (y/n, default: n): ").strip().lower()
+    fetch_details = fetch_details_input in ['y', 'yes']
+    
+    output_file = input("Output CSV file path (press Enter for auto-generated name): ").strip()
+    if not output_file:
+        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+        output_file = f"dora_report_{timestamp}.csv"
+    
+    json_output = input("Also save raw JSON data? Enter filename or press Enter to skip: ").strip()
+    
+    print("\n" + "="*80)
+    print("Summary of Parameters")
+    print("="*80)
+    print(f"Period: {from_date} to {to_date}")
+    print(f"Teambook IDs: {teambook_ids}")
+    print(f"Teambook Level: {teambook_level}")
+    print(f"Fetch Details: {fetch_details}")
+    print(f"Output CSV: {output_file}")
+    if json_output:
+        print(f"Output JSON: {json_output}")
+    print("="*80)
+    
+    confirm = input("\nProceed with fetching? (y/n): ").strip().lower()
+    if confirm not in ['y', 'yes']:
+        print("Operation cancelled.")
         return
     
     fetcher = DataSightDORAFetcher(base_url, bearer_token)
     
     results = fetcher.fetch_all_metrics(
-        from_date=args.from_date,
-        to_date=args.to_date,
-        teambook_ids=args.teambook_ids,
-        teambook_level=args.level,
-        fetch_details=args.fetch_details
+        from_date=from_date,
+        to_date=to_date,
+        teambook_ids=teambook_ids,
+        teambook_level=teambook_level,
+        fetch_details=fetch_details
     )
-    
-    if args.output:
-        output_file = args.output
-    else:
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        output_file = f"dora_report_{timestamp}.csv"
     
     fetcher.generate_csv_report(results, output_file)
     
-    if args.json_output:
-        fetcher.save_to_json(results, args.json_output)
+    if json_output:
+        fetcher.save_to_json(results, json_output)
 
 
 if __name__ == '__main__':
