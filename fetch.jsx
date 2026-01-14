@@ -5,6 +5,9 @@ import csv
 from datetime import datetime
 from typing import Dict, List, Optional
 import os
+import urllib3
+
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 
 class DataSightDORAFetcher:
@@ -54,7 +57,7 @@ class DataSightDORAFetcher:
         }
         
         try:
-            response = requests.get(endpoint, headers=self.headers, params=params)
+            response = requests.get(endpoint, headers=self.headers, params=params, verify=False)
             response.raise_for_status()
             result = response.json()
             return {
@@ -97,7 +100,7 @@ class DataSightDORAFetcher:
         }
         
         try:
-            response = requests.get(endpoint, headers=self.headers, params=params)
+            response = requests.get(endpoint, headers=self.headers, params=params, verify=False)
             response.raise_for_status()
             result = response.json()
             return {
@@ -140,7 +143,7 @@ class DataSightDORAFetcher:
         }
         
         try:
-            response = requests.get(endpoint, headers=self.headers, params=params)
+            response = requests.get(endpoint, headers=self.headers, params=params, verify=False)
             response.raise_for_status()
             result = response.json()
             return {
@@ -183,7 +186,7 @@ class DataSightDORAFetcher:
         }
         
         try:
-            response = requests.get(endpoint, headers=self.headers, params=params)
+            response = requests.get(endpoint, headers=self.headers, params=params, verify=False)
             response.raise_for_status()
             result = response.json()
             return {
@@ -219,7 +222,7 @@ class DataSightDORAFetcher:
         }
         
         try:
-            response = requests.get(endpoint, headers=self.headers, params=params)
+            response = requests.get(endpoint, headers=self.headers, params=params, verify=False)
             response.raise_for_status()
             return {
                 'status': 'success',
