@@ -276,9 +276,17 @@ class DataSightDORAFetcher:
             
             for record in records:
                 lttd_eligible = record.get('lttd_eligible', False)
-                lttd_days = record.get('lead_time_to_deploy_numeric_days', 0)
-                if lttd_days == 0:
-                    lttd_days = record.get('lead_time_to_deploy_days', 0)
+                lttd_days = record.get('lead_time_to_deploy_numeric_days')
+                if lttd_days is None:
+                    lttd_days = record.get('lead_time_to_deploy_days')
+                
+                if lttd_days is None:
+                    lttd_days = 0
+                
+                try:
+                    lttd_days = float(lttd_days)
+                except (ValueError, TypeError):
+                    lttd_days = 0
                 
                 if lttd_eligible and lttd_days > min_lttd_days:
                     enriched_record = self._enrich_lttd_record(record)
