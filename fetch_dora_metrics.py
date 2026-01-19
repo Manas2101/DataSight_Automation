@@ -235,6 +235,91 @@ class DataSightDORAFetcher:
                 'data': None
             }
     
+    def fetch_filtered_lttd_records(self, from_date: str, to_date: str, teambook_ids: str, 
+                                    teambook_level: int, min_lttd_days: int = 15) -> List[Dict]:
+        """
+        Fetch LTTD records filtered by lttd_eligible=true and LTTD days > threshold.
+        
+        Args:
+            from_date: Start date (format: YYYY-MM)
+            to_date: End date (format: YYYY-MM)
+            teambook_ids: Teambook IDs (comma-separated)
+            teambook_level: Teambook level (1-5)
+            min_lttd_days: Minimum LTTD days threshold (default: 15)
+            
+        Returns:
+            List of filtered LTTD records with additional fields
+        """
+        print(f"\nFetching LTTD records where lttd_eligible=true and LTTD > {min_lttd_days} days...")
+        
+        lttd_metrics = self.fetch_lttd(from_date, to_date, teambook_ids, teambook_level)
+        
+        if lttd_metrics['status'] != 'success' or not lttd_metrics.get('data'):
+            print("Failed to fetch LTTD metrics")
+            return []
+        
+        filtered_records = []
+        lttd_data = lttd_metrics['data'].get('data', [])
+        
+        for metric_record in lttd_data:
+            agg_key = metric_record.get('aggKey')
+            if not agg_key:
+                continue
+            
+            print(f"  Processing aggKey: {agg_key}")
+            details_response = self.fetch_lttd_records(agg_key, size=100)
+            
+            if details_response['status'] != 'success' or not details_response.get('data'):
+                continue
+            
+            records = details_response['data'].get('data', [])
+            
+            for record in records:
+                lttd_eligible = record.get('lttd_eligible', False)
+                lttd_days = record.get('lttd', 0)
+                
+                if lttd_eligible and lttd_days > min_lttd_days:
+                    enriched_record = self._enrich_lttd_record(record)
+                    filtered_records.append(enriched_record)
+        
+        print(f"  Found {len(filtered_records)} records matching criteria")
+        return filtered_records
+    
+    def _enrich_lttd_record(self, record: Dict) -> Dict:
+        """
+        Enrich LTTD record with commits URL and source code diff URL.
+        
+        Args:
+            record: Original LTTD record
+            
+        Returns:
+            Enriched record with additional URL fields
+        """
+        enriched = record.copy()
+        
+        cr_id = record.get('cr_id', '')
+        repo_link = record.get('repo_link', '')
+        commit_id = record.get('commit_id', '')
+        
+        if repo_link and commit_id:
+            if 'github' in repo_link.lower():
+                enriched['commits_url'] = f"{repo_link}/commit/{commit_id}"
+                enriched['source_code_diff_url'] = f"{repo_link}/commit/{commit_id}.diff"
+            elif 'gitlab' in repo_link.lower():
+                enriched['commits_url'] = f"{repo_link}/-/commit/{commit_id}"
+                enriched['source_code_diff_url'] = f"{repo_link}/-/commit/{commit_id}.diff"
+            elif 'bitbucket' in repo_link.lower():
+                enriched['commits_url'] = f"{repo_link}/commits/{commit_id}"
+                enriched['source_code_diff_url'] = f"{repo_link}/diff/{commit_id}"
+            else:
+                enriched['commits_url'] = f"{repo_link}/commit/{commit_id}" if commit_id else ''
+                enriched['source_code_diff_url'] = f"{repo_link}/diff/{commit_id}" if commit_id else ''
+        else:
+            enriched['commits_url'] = ''
+            enriched['source_code_diff_url'] = ''
+        
+        return enriched
+    
     def fetch_all_metrics(self, from_date: str, to_date: str, teambook_ids: str, 
                          teambook_level: int, fetch_details: bool = False) -> Dict:
         """
@@ -470,6 +555,75 @@ class DataSightDORAFetcher:
         with open(output_file, 'w', encoding='utf-8') as f:
             json.dump(data, f, indent=2)
         print(f"JSON data saved: {output_file}")
+    
+    def generate_filtered_lttd_csv(self, records: List[Dict], output_file: str):
+        """
+        Generate CSV report for filtered LTTD records (lttd_eligible=true, LTTD > 15 days).
+        
+        Args:
+            records: List of filtered LTTD records
+            output_file: Output CSV file path
+        """
+        if not records:
+            print("No records to export")
+            return
+        
+        with open(output_file, 'w', newline='', encoding='utf-8') as f:
+            writer = csv.writer(f)
+            
+            writer.writerow(['HIGH LTTD RECORDS REPORT - LTTD > 15 Days (Eligible Only)'])
+            writer.writerow(['Generated:', datetime.now().isoformat()])
+            writer.writerow(['Total Records:', len(records)])
+            writer.writerow([])
+            
+            headers = [
+                'Month/Year',
+                'Change Reference',
+                'Start Date',
+                'End Date',
+                'Replica Item',
+                'Applicant Group',
+                'Assign Group',
+                'Report Group',
+                'LTTD (Days)',
+                'Requested By',
+                'DTT (Days)',
+                'LTTD Days (No Weekends)',
+                'LTTD Days (Inc Weekends)',
+                'CR Process Handle',
+                'ICE CR Link',
+                'CR First Commit URL',
+                'Commits URL',
+                'Source Code Diff URL',
+                'CR Repo Link'
+            ]
+            writer.writerow(headers)
+            
+            for record in records:
+                writer.writerow([
+                    record.get('month_year', ''),
+                    record.get('cr_id', ''),
+                    record.get('start_date', ''),
+                    record.get('end_date', ''),
+                    record.get('replica_item', ''),
+                    record.get('applicant_group', ''),
+                    record.get('assign_group', ''),
+                    record.get('report_group', ''),
+                    record.get('lttd', ''),
+                    record.get('requested_by', ''),
+                    record.get('dtt', ''),
+                    record.get('lttd_no_weekends', ''),
+                    record.get('lttd_inc_weekends', ''),
+                    record.get('cr_process_handle', ''),
+                    record.get('ice_cr_link', ''),
+                    record.get('cr_first_commit_url', ''),
+                    record.get('commits_url', ''),
+                    record.get('source_code_diff_url', ''),
+                    record.get('repo_link', '')
+                ])
+        
+        print(f"\nFiltered LTTD CSV report generated: {output_file}")
+        print(f"Total records exported: {len(records)}")
 
 
 def main():
@@ -529,47 +683,93 @@ def main():
         except ValueError:
             print("Please enter a valid number")
     
-    fetch_details_input = input("\nFetch detailed records using aggregation keys? (y/n, default: n): ").strip().lower()
-    fetch_details = fetch_details_input in ['y', 'yes']
+    print("\n" + "-"*80)
+    print("Select Report Type")
+    print("-"*80)
+    print("1. Full DORA Metrics Report (all metrics)")
+    print("2. Filtered LTTD Report (lttd_eligible=true, LTTD > 15 days)")
     
-    output_file = input("Output CSV file path (press Enter for auto-generated name): ").strip()
-    if not output_file:
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        output_file = f"dora_report_{timestamp}.csv"
-    
-    json_output = input("Also save raw JSON data? Enter filename or press Enter to skip: ").strip()
-    
-    print("\n" + "="*80)
-    print("Summary of Parameters")
-    print("="*80)
-    print(f"Period: {from_date} to {to_date}")
-    print(f"Teambook IDs: {teambook_ids}")
-    print(f"Teambook Level: {teambook_level}")
-    print(f"Fetch Details: {fetch_details}")
-    print(f"Output CSV: {output_file}")
-    if json_output:
-        print(f"Output JSON: {json_output}")
-    print("="*80)
-    
-    confirm = input("\nProceed with fetching? (y/n): ").strip().lower()
-    if confirm not in ['y', 'yes']:
-        print("Operation cancelled.")
-        return
+    report_type = input("\nSelect report type (1 or 2): ").strip()
     
     fetcher = DataSightDORAFetcher(base_url, bearer_token)
     
-    results = fetcher.fetch_all_metrics(
-        from_date=from_date,
-        to_date=to_date,
-        teambook_ids=teambook_ids,
-        teambook_level=teambook_level,
-        fetch_details=fetch_details
-    )
-    
-    fetcher.generate_csv_report(results, output_file)
-    
-    if json_output:
-        fetcher.save_to_json(results, json_output)
+    if report_type == '2':
+        min_lttd = input("Minimum LTTD days threshold (default: 15): ").strip()
+        min_lttd_days = int(min_lttd) if min_lttd else 15
+        
+        output_file = input("Output CSV file path (press Enter for auto-generated name): ").strip()
+        if not output_file:
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            output_file = f"lttd_filtered_report_{timestamp}.csv"
+        
+        print("\n" + "="*80)
+        print("Summary of Parameters")
+        print("="*80)
+        print(f"Report Type: Filtered LTTD Records")
+        print(f"Period: {from_date} to {to_date}")
+        print(f"Teambook IDs: {teambook_ids}")
+        print(f"Teambook Level: {teambook_level}")
+        print(f"LTTD Threshold: > {min_lttd_days} days")
+        print(f"Filter: lttd_eligible = true")
+        print(f"Output CSV: {output_file}")
+        print("="*80)
+        
+        confirm = input("\nProceed with fetching? (y/n): ").strip().lower()
+        if confirm not in ['y', 'yes']:
+            print("Operation cancelled.")
+            return
+        
+        filtered_records = fetcher.fetch_filtered_lttd_records(
+            from_date=from_date,
+            to_date=to_date,
+            teambook_ids=teambook_ids,
+            teambook_level=teambook_level,
+            min_lttd_days=min_lttd_days
+        )
+        
+        fetcher.generate_filtered_lttd_csv(filtered_records, output_file)
+        
+    else:
+        fetch_details_input = input("\nFetch detailed records using aggregation keys? (y/n, default: n): ").strip().lower()
+        fetch_details = fetch_details_input in ['y', 'yes']
+        
+        output_file = input("Output CSV file path (press Enter for auto-generated name): ").strip()
+        if not output_file:
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            output_file = f"dora_report_{timestamp}.csv"
+        
+        json_output = input("Also save raw JSON data? Enter filename or press Enter to skip: ").strip()
+        
+        print("\n" + "="*80)
+        print("Summary of Parameters")
+        print("="*80)
+        print(f"Report Type: Full DORA Metrics")
+        print(f"Period: {from_date} to {to_date}")
+        print(f"Teambook IDs: {teambook_ids}")
+        print(f"Teambook Level: {teambook_level}")
+        print(f"Fetch Details: {fetch_details}")
+        print(f"Output CSV: {output_file}")
+        if json_output:
+            print(f"Output JSON: {json_output}")
+        print("="*80)
+        
+        confirm = input("\nProceed with fetching? (y/n): ").strip().lower()
+        if confirm not in ['y', 'yes']:
+            print("Operation cancelled.")
+            return
+        
+        results = fetcher.fetch_all_metrics(
+            from_date=from_date,
+            to_date=to_date,
+            teambook_ids=teambook_ids,
+            teambook_level=teambook_level,
+            fetch_details=fetch_details
+        )
+        
+        fetcher.generate_csv_report(results, output_file)
+        
+        if json_output:
+            fetcher.save_to_json(results, json_output)
 
 
 if __name__ == '__main__':
