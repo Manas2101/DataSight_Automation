@@ -289,8 +289,7 @@ class DataSightDORAFetcher:
                     lttd_days = 0
                 
                 if lttd_eligible and lttd_days > min_lttd_days:
-                    enriched_record = self._enrich_lttd_record(record)
-                    filtered_records.append(enriched_record)
+                    filtered_records.append(record)
                     print(f"    ✓ Matched: ID={record.get('id', 'N/A')}, LTTD={lttd_days} days")
         
         print(f"  Found {len(filtered_records)} records matching criteria")
@@ -588,107 +587,51 @@ class DataSightDORAFetcher:
             writer.writerow([])
             
             headers = [
-                'ID',
-                'Month',
-                'Year',
-                'Assignment Group',
-                'Change Type',
-                'Change Sub Type',
-                'Category',
-                'Close Code',
-                'Sub Close Code',
-                'Business Impact',
-                'L1 Business Unit',
-                'L2 Business Unit',
-                'L3 Business Unit',
-                'L4 Business Unit',
-                'L5 Business Unit',
-                'L6 Business Unit',
+                'Month-Year',
+                'Change Reference',
                 'Start Date',
-                'End Date',
-                'Closed At',
-                'State',
+                'Replica Item',
+                'Applicant Group',
+                'Assign Group',
+                'Report Group',
+                'DTT (17 Pod)',
                 'Requested By',
-                'Requested By Employee ID',
-                'Business Service',
-                'Short Description',
-                'SN URL',
-                'With LTTD',
+                'LTTD Days (Inc. Weekends-numeric)',
                 'CR Processing Hurdle',
-                'Lead Time to Deploy Days',
-                'Lead Time to Deploy Numeric Days',
-                'LTTD Eligible',
-                'LTTD Eligibility Exclusion Reason',
-                'CR First Commit URL',
-                'CR First Commit Time',
-                'Source Code Diff URL',
-                'Accessible',
-                'Associated Diff Types',
-                'Diff URL Call Successful',
                 'ICE CR Link',
-                'Code Successfully in Production Type',
-                'Actual End Date Time',
-                'Repo Fetch Attempted On',
-                'Repo Link',
-                'Request Type',
+                'CR First Commit URL',
                 'Commits URL Call',
-                'Version',
-                'Requestor Country',
-                'Commits URL (Generated)',
-                'Source Code Diff URL (Generated)'
+                'Source Code Diff URL',
+                'CR First Commit Time',
+                'Actual End Date Time',
+                'Repo Link'
             ]
             writer.writerow(headers)
             
-            for record in records:
+            for idx, record in enumerate(records, start=1):
+                month = record.get('month', '')
+                year = record.get('year', '')
+                month_year = f"{month}-{year}" if month and year else ''
+                
                 writer.writerow([
+                    month_year,
                     record.get('id', ''),
-                    record.get('month', ''),
-                    record.get('year', ''),
+                    record.get('start_date', ''),
+                    record.get('short_description', ''),
+                    record.get('requested_by', ''),
                     record.get('assignment_group', ''),
-                    record.get('change_type', ''),
-                    record.get('change_sub_type', ''),
-                    record.get('category', ''),
-                    record.get('close_code', ''),
-                    record.get('sub_close_code', ''),
-                    record.get('business_impact', ''),
-                    record.get('l1_business_unit', ''),
-                    record.get('l2_business_unit', ''),
                     record.get('l3_business_unit', ''),
                     record.get('l4_business_unit', ''),
-                    record.get('l5_business_unit', ''),
-                    record.get('l6_business_unit', ''),
-                    record.get('start_date', ''),
-                    record.get('end_date', ''),
-                    record.get('closed_at', ''),
-                    record.get('state', ''),
                     record.get('requested_by', ''),
-                    record.get('requested_by_employee_id', ''),
-                    record.get('business_service', ''),
-                    record.get('short_description', ''),
-                    record.get('sn_url', ''),
-                    record.get('with_lttd', ''),
-                    record.get('cr_processing_hurdle', ''),
-                    record.get('lead_time_to_deploy_days', ''),
                     record.get('lead_time_to_deploy_numeric_days', ''),
-                    record.get('lttd_eligible', ''),
-                    record.get('lttd_eligibility_exclusion_reason', ''),
-                    record.get('cr_first_commit_url', ''),
-                    record.get('cr_first_commit_time', ''),
-                    record.get('source_code_diff_URL', ''),
-                    record.get('accessible', ''),
-                    record.get('associated_diff_types', ''),
-                    record.get('diff_url_call_successful', ''),
+                    record.get('cr_processing_hurdle', ''),
                     record.get('ice_cr_link', ''),
-                    record.get('code_successfully_in_production_type', ''),
-                    record.get('actual_end_date_time', ''),
-                    record.get('repo_fetch_attempted_on', ''),
-                    record.get('repo_link', ''),
-                    record.get('request_type', ''),
+                    record.get('cr_first_commit_url', ''),
                     record.get('commits_url_call', ''),
-                    record.get('version', ''),
-                    record.get('requestor_country', ''),
-                    record.get('commits_url', ''),
-                    record.get('source_code_diff_url', '')
+                    record.get('source_code_diff_URL', ''),
+                    record.get('cr_first_commit_time', ''),
+                    record.get('actual_end_date_time', ''),
+                    record.get('repo_link', '')
                 ])
         
         print(f"\nFiltered LTTD CSV report generated: {output_file}")
