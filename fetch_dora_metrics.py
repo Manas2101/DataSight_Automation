@@ -276,11 +276,14 @@ class DataSightDORAFetcher:
             
             for record in records:
                 lttd_eligible = record.get('lttd_eligible', False)
-                lttd_days = record.get('lttd', 0)
+                lttd_days = record.get('lead_time_to_deploy_numeric_days', 0)
+                if lttd_days == 0:
+                    lttd_days = record.get('lead_time_to_deploy_days', 0)
                 
                 if lttd_eligible and lttd_days > min_lttd_days:
                     enriched_record = self._enrich_lttd_record(record)
                     filtered_records.append(enriched_record)
+                    print(f"    ✓ Matched: ID={record.get('id', 'N/A')}, LTTD={lttd_days} days")
         
         print(f"  Found {len(filtered_records)} records matching criteria")
         return filtered_records
